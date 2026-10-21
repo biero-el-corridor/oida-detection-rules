@@ -7,8 +7,12 @@ oida s7 <IP> -i
 ```
 
 Reference: OIDA 1.0.6, classic S7comm engine (Snap7), TCP/102.
-Test capture: `request_id_oida_snap7_1.pcapng` (77 packets,
+Test capture: `oida_-i_snap7.pcapng` (77 packets,
 `oida s7 127.0.0.1 -i -p 10102` against a local mock).
+
+For the full `oida s7` command surface, see the protocol capability map in
+[`../README.md`](../README.md). This page covers only the `-i` fingerprint and
+its Suricata rules.
 
 ## What `-i` does
 
@@ -88,12 +92,17 @@ unconditional requests, not the fallback count.
 
 ## Rules
 
+The rule set covers the four identification reads in the capture: all records
+of SZL `0x0011`, all records of `0x001C`, index `1` of `0x001C`, and all records
+of `0x0131`. Index `0x0000` is the wildcard request that returns every record
+for that SZL; index `0x0001` selects the automation-system name record.
+
 | SID | Match | Fingerprint value | Priority |
 | --- | --- | --- | --- |
-| `9999901` | SZL `0x0011` index `0` | order code / module identification | 3 |
-| `9999902` | SZL `0x001C` index `0` | all component identification records | 3 |
-| `9999903` | SZL `0x001C` index `1` | module name (automation system) | 3 |
-| `9999905` | SZL `0x0131` index `0` | communication capability parameters | 3 |
+| `9999901` | SZL `0x0011`, index `0x0000` (all records) | order code / module identification | 3 |
+| `9999902` | SZL `0x001C`, index `0x0000` (all records) | component identification | 3 |
+| `9999903` | SZL `0x001C`, index `0x0001` | module name / automation system | 3 |
+| `9999905` | SZL `0x0131`, index `0x0000` (all records) | communication capability parameters | 3 |
 | `9999920` | all four `xbits` in 5 s | full OIDA `-i` fingerprint | 1 |
 
 ### Match anatomy
@@ -157,36 +166,13 @@ not from the host.
 
 See [`oida_s7_i.png`](oida_s7_i.png) for the captured terminal output.
 
-## OIDA S7 capability map
-
-The full `oida s7 -h` surface, for context when extending the rule set:
-
-| Group | Commands | Writes / state change |
-| --- | --- | --- |
-| Connection | `-p`, `-R/--rack`, `-s/--slot`, `--connection-type`, `--pdu-size`, `--timeout` | no |
-| Discovery | `-i`, `-e`, `-T`, `-F`, `-S` | no (`-T` probes writes only with `--confirm`) |
-| SZL / system | `-L`, `-E`, `--read-szl-id`, `-G` | no |
-| Memory read | `-I`, `-Q`, `-M`, `--read-timers`, `--read-counters`, `-r`, `-D` | no |
-| Memory write | `-w`, `--write-markers`, `--write-outputs`, `--write-inputs`, `--write-timers`, `--write-counters`, `--db-fill`, `--test-write` | yes, `--confirm` |
-| Block operations | `-l`, `-B`, `--list-blocks-of-type`, `-U`, `--upload-block`, `-O` | no |
-| Block mutation | `--download-db`, `--delete-block` | yes, `--confirm` |
-| CPU control | `--cpu-stop`, `--cpu-start`, `--cpu-hot-start`, `--restart`, `-K/--copy-ram-to-rom`, `--compress` | yes, `--confirm` |
-| Clock | `-G`, `--set-datetime`, `--sync-datetime` | set/sync: `--confirm` |
-| Monitor | `--monitor`, `--monitor-areas` (`I,Q,M`), `--monitor-size` (16), `--monitor-bits`, `--interval` (0.5 s), `--duration` | no |
-| Credentials | `-n/--null-password`, `--default-creds`, `--brute --wordlist`, `-P FILE`, `--brute-rate`, `--continue-on-success`, `--logout` | brute/default: `--confirm` |
-| Audit | `--audit`, `--audit-quick` | yes, `--confirm` |
-| Fuzzing | `--fuzz db\|memory\|all`, `--fuzz-db`, `--fuzz-iterations`, `--fuzz-max-targets` | yes, `--confirm` |
-
-Note: `--cpu-start` maps to a **hot** start; the cold start is `--restart`.
-`--audit` runs seven stages (identity, protection, memory access, write probe,
-DB enumeration, SZL disclosure, default passwords); `--audit-quick` drops the
-password stage.
-
 ## Validation
 
+Run from this folder:
+
 ```bash
-suricata -r request_id_oida_snap7_1.pcapng \
-  -S s7comm/oida_s7_-i_detection.rules \
+suricata -r oida_-i_snap7.pcapng \
+  -S oida_s7_-i_detection.rules \
   -l /tmp/oida-s7 --runmode single -k none
 
 cat /tmp/oida-s7/fast.log
@@ -197,8 +183,8 @@ Result on the reference capture:
 | SID | Alerts | Notes |
 | --- | --- | --- |
 | `9999901` | 3 | two probe sessions + main session |
-| `9999902` | 1 | main session, index 0 |
-| `9999903` | 2 | probe sessions, index 1 |
+| `9999902` | 1 | main session, all `0x001C` records |
+| `9999903` | 2 | probe sessions, `0x001C` index 1 |
 | `9999905` | 1 | main session, CP info |
 | `9999920` | 1 | server response to the `0x0131` request |
 

@@ -15,16 +15,16 @@ correlate several operations that belong to the same scan.
 
 | Protocol | Folder | Fingerprinted command | Status |
 | --- | --- | --- | --- |
-| Siemens S7comm | [`s7comm/`](s7comm/) | `oida s7 <IP> -i` | rules + reference capture |
+| Siemens S7comm | [`s7comm/`](s7comm/) → [`s7 -i/`](s7comm/s7%20-i/) | `oida s7 <IP> -i` | rules + reference capture |
 | Modbus TCP | — | — | planned |
 | OPC UA | — | — | planned |
 | IEC 60870-5-104 | — | — | planned |
 
 Each protocol folder contains:
 
-- a README describing the OIDA command, its PDU sequence and the detection logic;
-- the Suricata rules;
-- the reference output or capture notes used to validate them.
+- a `README.md` with the OIDA capability map for that protocol;
+- one subfolder per fingerprinted command, with its own `README.md`, Suricata
+  rules, reference capture and output.
 
 ## Design
 
@@ -52,9 +52,12 @@ Conventions:
 .
 ├── README.md
 └── s7comm/
-    ├── README.md
-    ├── oida_s7_-i_detection.rules
-    └── oida_s7_i.png
+    ├── README.md                         # OIDA S7 capability map
+    └── s7 -i/
+        ├── README.md                     # -i PDU sequence and detection logic
+        ├── oida_s7_-i_detection.rules
+        ├── oida_-i_snap7.pcapng
+        └── oida_s7_i.png
 ```
 
 ## Validate a rule set
@@ -62,25 +65,25 @@ Conventions:
 ```bash
 # replay a capture through the rules
 suricata -r request.pcapng \
-  -S s7comm/oida_s7_-i_detection.rules \
+  -S "s7comm/s7 -i/oida_s7_-i_detection.rules" \
   -l /tmp/oida-rules --runmode single -k none
 
 # show the alerts
 cat /tmp/oida-rules/fast.log
 ```
 
-For the S7 reference capture (`request_id_oida_snap7_1.pcapng`, 77 packets,
+For the S7 reference capture (`s7comm/s7 -i/oida_-i_snap7.pcapng`, 77 packets,
 `oida s7 127.0.0.1 -i -p 10102` against a local mock):
 
 ```bash
-suricata -r request_id_oida_snap7_1.pcapng \
-  -S s7comm/oida_s7_-i_detection.rules \
+suricata -r "s7comm/s7 -i/oida_-i_snap7.pcapng" \
+  -S "s7comm/s7 -i/oida_s7_-i_detection.rules" \
   -l /tmp/oida-s7 --runmode single -k none
 ```
 
 Expected: rules `9999901`, `9999902`, `9999903`, `9999905` and `9999920` alert.
-See [`s7comm/README.md`](s7comm/README.md) for the per-rule result and the
-reasoning behind each match.
+See [`s7comm/s7 -i/README.md`](s7comm/s7%20-i/README.md) for the per-rule
+result and the reasoning behind each match.
 
 ## Adding a protocol
 
