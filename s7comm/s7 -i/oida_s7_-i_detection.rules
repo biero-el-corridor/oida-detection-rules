@@ -1,0 +1,116 @@
+# ============================================================================
+# OIDA S7comm Fingerprinting Detection - Suricata Rules
+# ============================================================================
+# Basees sur l'analyse comportementale de OIDA -i (mode S7comm)
+# Capture de reference : request_id_oida_snap7_1.pcapng
+#
+# Correlation via xbits (cross-flow, track ip_pair, expire 5s)
+# ============================================================================
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# REGLE 1 : SZL 0x0011 Wildcard - Enumeration Identification Module
+# Priorite : 3 (MEDIUM)
+# ──────────────────────────────────────────────────────────────────────────────
+
+alert tcp any any -> any 102 (\
+    msg:"S7COMM SZL 0x0011 All identification data records of a module"; \
+    flow:to_server,established; \
+    content:"|03 00|"; offset:0; depth:2; \
+    content:"|02 F0 80 32 07|"; offset:4; depth:5; \
+    content:"|00 01 12 04 11 44 01 00|"; offset:17; depth:8; \
+    content:"|00 11 00 00|"; distance:0; within:12; \
+    xbits:set,szl_0011,track ip_pair,expire 5; \
+    classtype:attempted-recon; \
+    priority:3; \
+    sid:9999901; rev:2; \
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# REGLE 2 : SZL 0x001C Wildcard - Enumeration Identification Composant
+# Priorite : 3 (MEDIUM)
+# ──────────────────────────────────────────────────────────────────────────────
+
+alert tcp any any -> any 102 (\
+    msg:"S7COMM SZL 0x001c Identification of all components"; \
+    flow:to_server,established; \
+    content:"|03 00|"; offset:0; depth:2; \
+    content:"|02 F0 80 32 07|"; offset:4; depth:5; \
+    content:"|00 01 12 04 11 44 01 00|"; offset:17; depth:8; \
+    content:"|00 1c 00 00|"; distance:0; within:12; \
+    xbits:set,szl_001c_all,track ip_pair,expire 5; \
+    classtype:attempted-recon; \
+    priority:3; \
+    sid:9999902; rev:2; \
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# REGLE 3 : SZL 0x001C Index 0x0001 - Nom du systeme d'automatisation
+# Priorite : 3 (MEDIUM)
+# ──────────────────────────────────────────────────────────────────────────────
+
+alert tcp any any -> any 102 (\
+    msg:"S7COMM SZL 0x001c Name of the automation system"; \
+    flow:to_server,established; \
+    content:"|03 00|"; offset:0; depth:2; \
+    content:"|02 F0 80 32 07|"; offset:4; depth:5; \
+    content:"|00 01 12 04 11 44 01 00|"; offset:17; depth:8; \
+    content:"|00 1c 00 01|"; distance:0; within:12; \
+    xbits:set,szl_001c_name,track ip_pair,expire 5; \
+    classtype:attempted-recon; \
+    priority:3; \
+    sid:9999903; rev:2; \
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# REGLE 4 : SZL 0x0131 Wildcard - Enumeration Capacites Communication
+# Priorite : 3 (MEDIUM)
+# ──────────────────────────────────────────────────────────────────────────────
+
+alert tcp any any -> any 102 (\
+    msg:"S7COMM SZL 0x0131 ALL || Information about a communication unit, specified by index"; \
+    flow:to_server,established; \
+    content:"|03 00|"; offset:0; depth:2; \
+    content:"|02 F0 80 32 07|"; offset:4; depth:5; \
+    content:"|00 01 12 04 11 44 01 00|"; offset:17; depth:8; \
+    content:"|01 31 00 00|"; distance:0; within:12; \
+    xbits:set,szl_0131,track ip_pair,expire 5; \
+    classtype:attempted-recon; \
+    priority:3; \
+    sid:9999905; rev:2; \
+)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# REGLE DE CORRELATION (xbits cross-flow, fenetre 5 secondes)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# REGLE 5 : CORRELATION 4/4 - Fingerprinting OIDA complet
+# Priorite : 1 (CRITICAL)
+# ──────────────────────────────────────────────────────────────────────────────
+# Declenchement : la meme paire IP a declenche les 4 regles unitaires
+# dans une fenetre de 5 secondes.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Direction : reponse PLC -> client. Les 4 xbits sont poses par les requetes
+# client -> PLC ; matcher la reponse au dernier SZL garantit qu'ils sont tous
+# presents avant l'evaluation (aucune requete cliente ne suit le 0x0131).
+alert tcp any 102 -> any any (\
+    msg:"S7COMM CRITICAL - OIDA Full PLC Fingerprinting (0x0011+0x001C_all+0x001C_name+0x0131 in 5s)"; \
+    flow:to_client,established; \
+    content:"|03 00|"; offset:0; depth:2; \
+    content:"|32 07|"; offset:7; depth:2; \
+    xbits:isset,szl_0011,track ip_pair; \
+    xbits:isset,szl_001c_all,track ip_pair; \
+    xbits:isset,szl_001c_name,track ip_pair; \
+    xbits:isset,szl_0131,track ip_pair; \
+    threshold:type limit, track by_both, seconds 5, count 1; \
+    classtype:attempted-recon; \
+    priority:1; \
+    sid:9999920; rev:2; \
+)
