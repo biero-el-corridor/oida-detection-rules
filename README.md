@@ -133,6 +133,7 @@ Conventions:
 ├── Makefile                              # `make rules`, `make test`
 ├── oida_detection.rules                  # generated global rule set (19 rules)
 ├── OPC-UA/
+│   ├── README.md                         # OIDA OPC UA capability map
 │   └── get-endpoint/
 │       ├── README.md                     # endpoint mapping, channel/session, rules
 │       ├── oida_opcua_get_endpoints.rules

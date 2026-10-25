@@ -1,4 +1,4 @@
-# OPC UA — OIDA `--get-endpoints` behaviour
+# OPC UA — OIDA `--get-endpoints` fingerprint
 
 Detection content for OIDA's OPC UA endpoint-mapping run:
 
